@@ -47,12 +47,10 @@ fn reads_host_and_port_with_defaults() {
 
 #[test]
 fn jwt_secret_defaults_when_not_set() {
-    let config = AppConfig::from_pairs([
-        (
-            "DATABASE_URL",
-            "postgres://user:password@localhost:5432/app",
-        ),
-    ])
+    let config = AppConfig::from_pairs([(
+        "DATABASE_URL",
+        "postgres://user:password@localhost:5432/app",
+    )])
     .expect("config should load");
 
     assert_eq!(config.jwt_secret, "dev-secret-change-in-production");

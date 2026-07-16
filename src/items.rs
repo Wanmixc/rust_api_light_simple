@@ -116,13 +116,12 @@ pub async fn get_item(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<Item>>, ApiError> {
-    let item = sqlx::query_as::<_, Item>(&format!(
-        "select {ITEM_COLUMNS} from items where id = $1"
-    ))
-    .bind(id)
-    .fetch_optional(&state.pool)
-    .await?
-    .ok_or(ApiError::NotFound)?;
+    let item =
+        sqlx::query_as::<_, Item>(&format!("select {ITEM_COLUMNS} from items where id = $1"))
+            .bind(id)
+            .fetch_optional(&state.pool)
+            .await?
+            .ok_or(ApiError::NotFound)?;
 
     Ok(Json(ApiResponse::ok(item)))
 }
@@ -141,11 +140,10 @@ pub async fn update_item(
     let new_is_active = payload.is_active.unwrap_or(true);
 
     // Fetch current is_active to decide whether to set inactivated_* fields.
-    let current: Option<(bool,)> =
-        sqlx::query_as("select is_active from items where id = $1")
-            .bind(id)
-            .fetch_optional(&state.pool)
-            .await?;
+    let current: Option<(bool,)> = sqlx::query_as("select is_active from items where id = $1")
+        .bind(id)
+        .fetch_optional(&state.pool)
+        .await?;
 
     let (current_is_active,) = current.ok_or(ApiError::NotFound)?;
 

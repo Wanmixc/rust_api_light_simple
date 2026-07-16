@@ -168,7 +168,9 @@ pub async fn list_users(
     .fetch_all(&state.pool)
     .await?;
 
-    Ok(Json(ApiResponse::ok(users.into_iter().map(UserPublic::from).collect())))
+    Ok(Json(ApiResponse::ok(
+        users.into_iter().map(UserPublic::from).collect(),
+    )))
 }
 
 // ---------------------------------------------------------------------------
@@ -187,7 +189,9 @@ impl FromRequestParts<super::AppState> for AuthUser {
             .get("authorization")
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.strip_prefix("Bearer "))
-            .ok_or_else(|| ApiError::Unauthorized("missing or invalid Authorization header".into()))?;
+            .ok_or_else(|| {
+                ApiError::Unauthorized("missing or invalid Authorization header".into())
+            })?;
 
         let token_data = decode::<Claims>(
             header,

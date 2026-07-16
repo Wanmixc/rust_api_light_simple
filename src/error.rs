@@ -86,10 +86,7 @@ impl IntoResponse for ApiError {
         let body = ApiResponse::<()> {
             status: ApiStatus {
                 code: code.as_u16(),
-                message: code
-                    .canonical_reason()
-                    .unwrap_or("error")
-                    .to_lowercase(),
+                message: code.canonical_reason().unwrap_or("error").to_lowercase(),
             },
             description: message.clone(),
             data: (),
