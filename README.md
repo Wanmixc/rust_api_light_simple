@@ -74,13 +74,33 @@ curl http://localhost:3010/api/items
 
 ## Deploy on Koyeb
 
-This project has no Node/Python/Go files, so **buildpacks will fail**. Deploy with the **Dockerfile** builder:
+This is a **Rust** app. Koyeb **buildpacks do not support Rust**, so deploy with the **Dockerfile** builder only.
 
-1. Create a new Koyeb service from this GitHub repo.
-2. Set **Builder** to **Dockerfile** (not Buildpack).
-3. Dockerfile path: `Dockerfile`.
-4. Set the service HTTP port to match `PORT` (default in the image is `3010`, or use whatever `PORT` you set in env).
-5. Add environment variables:
+### One-click (Dockerfile builder forced)
+
+[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?name=rust-api-light-simple&type=git&builder=dockerfile&repository=Wanmixc/rust_api_light_simple&branch=main&ports=3010;http;/)
+
+Direct link:
+
+```text
+https://app.koyeb.com/deploy?name=rust-api-light-simple&type=git&builder=dockerfile&repository=Wanmixc/rust_api_light_simple&branch=main&ports=3010;http;/
+```
+
+### Fix an existing service that keeps failing
+
+Your current build log shows **Buildpack detection** (`heroku/*`, `No buildpack groups passed detection`). That means the service is still set to **Buildpack**, not **Dockerfile**.
+
+1. Open the service on [Koyeb Control Panel](https://app.koyeb.com/).
+2. Go to **Settings** → **Build and deployment** (or **Builder**).
+3. Change **Builder** from **Buildpack** to **Dockerfile**.
+4. Dockerfile path: `Dockerfile` (repo root).
+5. Set **Port** to `3010` (or the same value as env `PORT`).
+6. Health check path: `/health`.
+7. Save and redeploy.
+
+If there is no Builder toggle on the existing service, create a **new** service with the one-click link above (it forces `builder=dockerfile`).
+
+### Environment variables
 
 ```env
 DATABASE_URL=postgres://user:password@host:5432/database?sslmode=require
@@ -90,8 +110,6 @@ RUST_LOG=info
 ```
 
 Or use split DB vars (`DATABASE_HOST`, `DATABASE_USER`, `DATABASE_PASSWORD`, `DATABASE_NAME`, `DATABASE_SSL_MODE`).
-
-Health check path: `/health`
 
 ## Public Repo Notes
 
