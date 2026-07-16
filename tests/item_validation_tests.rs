@@ -5,6 +5,7 @@ fn accepts_non_empty_name() {
     let payload = ItemPayload {
         name: "Notebook".to_string(),
         description: None,
+        is_active: None,
     };
 
     assert!(payload.validate().is_ok());
@@ -15,6 +16,7 @@ fn rejects_blank_name() {
     let payload = ItemPayload {
         name: "   ".to_string(),
         description: None,
+        is_active: None,
     };
 
     let error = payload.validate().expect_err("blank name should fail");

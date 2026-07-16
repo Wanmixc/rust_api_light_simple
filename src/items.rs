@@ -7,13 +7,14 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{auth::AuthUser, error::ApiError, AppState};
+use crate::{auth::AuthUser, error::ApiError, error::ApiResponse, AppState};
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Item {
     pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
+    pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -22,6 +23,7 @@ pub struct Item {
 pub struct ItemPayload {
     pub name: String,
     pub description: Option<String>,
+    pub is_active: Option<bool>,
 }
 
 impl ItemPayload {
@@ -39,6 +41,7 @@ impl ItemPayload {
             description: self
                 .description
                 .and_then(|value| non_empty_trimmed(value.as_str())),
+            is_active: self.is_active,
         }
     }
 }
@@ -52,10 +55,10 @@ pub enum ValidationError {
 pub async fn list_items(
     _auth: AuthUser,
     State(state): State<AppState>,
-) -> Result<Json<Vec<Item>>, ApiError> {
+) -> Result<Json<ApiResponse<Vec<Item>>>, ApiError> {
     let items = sqlx::query_as::<_, Item>(
         r#"
-        select id, name, description, created_at, updated_at
+        select id, name, description, is_active, created_at, updated_at
         from items
         order by created_at desc
         "#,
@@ -63,14 +66,14 @@ pub async fn list_items(
     .fetch_all(&state.pool)
     .await?;
 
-    Ok(Json(items))
+    Ok(Json(ApiResponse::ok(items)))
 }
 
 pub async fn create_item(
     _auth: AuthUser,
     State(state): State<AppState>,
     Json(payload): Json<ItemPayload>,
-) -> Result<(StatusCode, Json<Item>), ApiError> {
+) -> Result<(StatusCode, Json<ApiResponse<Item>>), ApiError> {
     payload
         .validate()
         .map_err(|error| ApiError::BadRequest(error.to_string()))?;
@@ -79,28 +82,29 @@ pub async fn create_item(
 
     let item = sqlx::query_as::<_, Item>(
         r#"
-        insert into items (id, name, description)
-        values ($1, $2, $3)
-        returning id, name, description, created_at, updated_at
+        insert into items (id, name, description, is_active)
+        values ($1, $2, $3, $4)
+        returning id, name, description, is_active, created_at, updated_at
         "#,
     )
     .bind(id)
     .bind(payload.name)
     .bind(payload.description)
+    .bind(payload.is_active.unwrap_or(true))
     .fetch_one(&state.pool)
     .await?;
 
-    Ok((StatusCode::CREATED, Json(item)))
+    Ok((StatusCode::CREATED, Json(ApiResponse::created(item))))
 }
 
 pub async fn get_item(
     _auth: AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<Json<Item>, ApiError> {
+) -> Result<Json<ApiResponse<Item>>, ApiError> {
     let item = sqlx::query_as::<_, Item>(
         r#"
-        select id, name, description, created_at, updated_at
+        select id, name, description, is_active, created_at, updated_at
         from items
         where id = $1
         "#,
@@ -110,7 +114,7 @@ pub async fn get_item(
     .await?
     .ok_or(ApiError::NotFound)?;
 
-    Ok(Json(item))
+    Ok(Json(ApiResponse::ok(item)))
 }
 
 pub async fn update_item(
@@ -118,7 +122,7 @@ pub async fn update_item(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(payload): Json<ItemPayload>,
-) -> Result<Json<Item>, ApiError> {
+) -> Result<Json<ApiResponse<Item>>, ApiError> {
     payload
         .validate()
         .map_err(|error| ApiError::BadRequest(error.to_string()))?;
@@ -129,26 +133,28 @@ pub async fn update_item(
         update items
         set name = $2,
             description = $3,
+            is_active = $4,
             updated_at = now()
         where id = $1
-        returning id, name, description, created_at, updated_at
+        returning id, name, description, is_active, created_at, updated_at
         "#,
     )
     .bind(id)
     .bind(payload.name)
     .bind(payload.description)
+    .bind(payload.is_active.unwrap_or(true))
     .fetch_optional(&state.pool)
     .await?
     .ok_or(ApiError::NotFound)?;
 
-    Ok(Json(item))
+    Ok(Json(ApiResponse::ok(item)))
 }
 
 pub async fn delete_item(
     _auth: AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<StatusCode, ApiError> {
+) -> Result<Json<ApiResponse<()>>, ApiError> {
     let result = sqlx::query("delete from items where id = $1")
         .bind(id)
         .execute(&state.pool)
@@ -158,7 +164,7 @@ pub async fn delete_item(
         return Err(ApiError::NotFound);
     }
 
-    Ok(StatusCode::NO_CONTENT)
+    Ok(Json(ApiResponse::ok(())))
 }
 
 fn non_empty_trimmed(value: &str) -> Option<String> {

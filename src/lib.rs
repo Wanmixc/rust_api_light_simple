@@ -4,11 +4,12 @@ pub mod error;
 pub mod items;
 pub mod schema;
 
-use axum::{routing::get, Router};
+use axum::{routing::get, Json, Router};
 use sqlx::PgPool;
 
 use crate::{
-    auth::{login, me, register},
+    auth::{list_users, login, me, register},
+    error::ApiResponse,
     items::{create_item, delete_item, get_item, list_items, update_item},
 };
 
@@ -26,6 +27,7 @@ pub fn create_router(pool: PgPool, jwt_secret: String) -> Router {
         .route("/api/auth/register", axum::routing::post(register))
         .route("/api/auth/login", axum::routing::post(login))
         .route("/api/auth/me", get(me))
+        .route("/api/auth/users", get(list_users))
         .route("/api/items", get(list_items).post(create_item))
         .route(
             "/api/items/{id}",
@@ -34,6 +36,6 @@ pub fn create_router(pool: PgPool, jwt_secret: String) -> Router {
         .with_state(state)
 }
 
-async fn health() -> &'static str {
-    "ok"
+async fn health() -> Json<ApiResponse<&'static str>> {
+    Json(ApiResponse::ok("ok"))
 }

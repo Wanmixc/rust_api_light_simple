@@ -12,7 +12,7 @@ use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation}
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::error::ApiError;
+use crate::error::{ApiError, ApiResponse};
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,6 +24,7 @@ pub struct UserRow {
     pub username: String,
     #[serde(skip_serializing)]
     pub password_hash: String,
+    pub is_active: bool,
     pub created_at: chrono::DateTime<Utc>,
 }
 
@@ -31,6 +32,7 @@ pub struct UserRow {
 pub struct UserPublic {
     pub id: Uuid,
     pub username: String,
+    pub is_active: bool,
 }
 
 impl From<UserRow> for UserPublic {
@@ -38,6 +40,7 @@ impl From<UserRow> for UserPublic {
         Self {
             id: u.id,
             username: u.username,
+            is_active: u.is_active,
         }
     }
 }
@@ -80,7 +83,7 @@ pub struct AuthUser {
 pub async fn register(
     State(state): State<super::AppState>,
     Json(payload): Json<RegisterPayload>,
-) -> Result<(StatusCode, Json<AuthResponse>), ApiError> {
+) -> Result<(StatusCode, Json<ApiResponse<AuthResponse>>), ApiError> {
     validate_credentials(&payload.username, &payload.password)?;
 
     let password_hash = hash_password(&payload.password)?;
@@ -92,7 +95,7 @@ pub async fn register(
         insert into users (id, username, password_hash)
         values ($1, $2, $3)
         on conflict (username) do nothing
-        returning id, username, password_hash, created_at
+        returning id, username, password_hash, is_active, created_at
         "#,
     )
     .bind(id)
@@ -107,21 +110,21 @@ pub async fn register(
 
     Ok((
         StatusCode::CREATED,
-        Json(AuthResponse {
+        Json(ApiResponse::created(AuthResponse {
             token,
             user: user_public,
-        }),
+        })),
     ))
 }
 
 pub async fn login(
     State(state): State<super::AppState>,
     Json(payload): Json<LoginPayload>,
-) -> Result<Json<AuthResponse>, ApiError> {
+) -> Result<Json<ApiResponse<AuthResponse>>, ApiError> {
     let username = payload.username.trim().to_lowercase();
 
     let user = sqlx::query_as::<_, UserRow>(
-        "select id, username, password_hash, created_at from users where username = $1",
+        "select id, username, password_hash, is_active, created_at from users where username = $1",
     )
     .bind(&username)
     .fetch_optional(&state.pool)
@@ -134,25 +137,38 @@ pub async fn login(
     let token = create_token(user.id, &state.jwt_secret)?;
     let user_public = UserPublic::from(user);
 
-    Ok(Json(AuthResponse {
+    Ok(Json(ApiResponse::ok(AuthResponse {
         token,
         user: user_public,
-    }))
+    })))
 }
 
 pub async fn me(
     auth: AuthUser,
     State(state): State<super::AppState>,
-) -> Result<Json<UserPublic>, ApiError> {
+) -> Result<Json<ApiResponse<UserPublic>>, ApiError> {
     let user = sqlx::query_as::<_, UserRow>(
-        "select id, username, password_hash, created_at from users where id = $1",
+        "select id, username, password_hash, is_active, created_at from users where id = $1",
     )
     .bind(auth.user_id)
     .fetch_optional(&state.pool)
     .await?
     .ok_or(ApiError::UserNotFound)?;
 
-    Ok(Json(UserPublic::from(user)))
+    Ok(Json(ApiResponse::ok(UserPublic::from(user))))
+}
+
+pub async fn list_users(
+    _auth: AuthUser,
+    State(state): State<super::AppState>,
+) -> Result<Json<ApiResponse<Vec<UserPublic>>>, ApiError> {
+    let users = sqlx::query_as::<_, UserRow>(
+        "select id, username, password_hash, is_active, created_at from users order by created_at desc",
+    )
+    .fetch_all(&state.pool)
+    .await?;
+
+    Ok(Json(ApiResponse::ok(users.into_iter().map(UserPublic::from).collect())))
 }
 
 // ---------------------------------------------------------------------------
