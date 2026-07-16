@@ -136,3 +136,68 @@ async fn can_create_item_with_valid_token() {
     let resp = router.clone().oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::CREATED);
 }
+
+#[tokio::test]
+#[ignore = "requires a running PostgreSQL"]
+async fn can_create_get_and_delete_paste_without_auth() {
+    let (_pool, router) = setup().await;
+
+    let create_req = Request::builder()
+        .method(http::Method::POST)
+        .uri("/api/pastes")
+        .header("content-type", "application/json")
+        .body(Body::from(json!({"content": "copy this"}).to_string()))
+        .unwrap();
+
+    let create_resp = router.clone().oneshot(create_req).await.unwrap();
+    assert_eq!(create_resp.status(), StatusCode::CREATED);
+    let body = axum::body::to_bytes(create_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let created: Value = serde_json::from_slice(&body).unwrap();
+    let id = created["data"]["id"].as_str().unwrap();
+    assert_eq!(id.len(), 5);
+    assert!(id.chars().all(|ch| ch.is_ascii_alphanumeric()));
+
+    let get_req = Request::builder()
+        .method(http::Method::GET)
+        .uri(format!("/api/pastes/{id}"))
+        .body(Body::empty())
+        .unwrap();
+
+    let get_resp = router.clone().oneshot(get_req).await.unwrap();
+    assert_eq!(get_resp.status(), StatusCode::OK);
+
+    let delete_req = Request::builder()
+        .method(http::Method::DELETE)
+        .uri(format!("/api/pastes/{id}"))
+        .body(Body::empty())
+        .unwrap();
+
+    let delete_resp = router.clone().oneshot(delete_req).await.unwrap();
+    assert_eq!(delete_resp.status(), StatusCode::OK);
+
+    let get_deleted_req = Request::builder()
+        .method(http::Method::GET)
+        .uri(format!("/api/pastes/{id}"))
+        .body(Body::empty())
+        .unwrap();
+
+    let get_deleted_resp = router.clone().oneshot(get_deleted_req).await.unwrap();
+    assert_eq!(get_deleted_resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+#[ignore = "requires a running PostgreSQL"]
+async fn list_pastes_endpoint_is_not_available() {
+    let (_pool, router) = setup().await;
+
+    let req = Request::builder()
+        .method(http::Method::GET)
+        .uri("/api/pastes")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+}
