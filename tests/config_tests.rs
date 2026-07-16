@@ -44,3 +44,30 @@ fn reads_host_and_port_with_defaults() {
     assert_eq!(config.host, "0.0.0.0");
     assert_eq!(config.port, 8080);
 }
+
+#[test]
+fn jwt_secret_defaults_when_not_set() {
+    let config = AppConfig::from_pairs([
+        (
+            "DATABASE_URL",
+            "postgres://user:password@localhost:5432/app",
+        ),
+    ])
+    .expect("config should load");
+
+    assert_eq!(config.jwt_secret, "dev-secret-change-in-production");
+}
+
+#[test]
+fn jwt_secret_from_env() {
+    let config = AppConfig::from_pairs([
+        (
+            "DATABASE_URL",
+            "postgres://user:password@localhost:5432/app",
+        ),
+        ("JWT_SECRET", "my-secret-key"),
+    ])
+    .expect("config should load");
+
+    assert_eq!(config.jwt_secret, "my-secret-key");
+}

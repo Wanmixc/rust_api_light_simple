@@ -10,7 +10,17 @@ create table if not exists items (
 )
 "#;
 
+pub const CREATE_USERS_TABLE_SQL: &str = r#"
+create table if not exists users (
+    id uuid primary key,
+    username text not null unique,
+    password_hash text not null,
+    created_at timestamptz not null default now()
+)
+"#;
+
 pub async fn ensure_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     pool.execute(CREATE_ITEMS_TABLE_SQL).await?;
+    pool.execute(CREATE_USERS_TABLE_SQL).await?;
     Ok(())
 }

@@ -21,8 +21,9 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("failed to ensure database schema")?;
 
-    let app = create_router(pool).layer(TraceLayer::new_for_http());
-    let listener = TcpListener::bind(config.bind_addr())
+    let bind_addr = config.bind_addr();
+    let app = create_router(pool, config.jwt_secret).layer(TraceLayer::new_for_http());
+    let listener = TcpListener::bind(bind_addr)
         .await
         .context("failed to bind TCP listener")?;
 

@@ -1,15 +1,22 @@
 # rust_api_light_simple
 
-Small Rust CRUD API for PostgreSQL, built with Axum and SQLx.
+Small Rust CRUD API for PostgreSQL, built with Axum + SQLx. JWT authentication (Argon2 hashed passwords).
 
 ## Endpoints
 
 ```text
+# Public
 GET    /health
+
+# Auth
+POST   /api/auth/register          { "username": "...", "password": "..." }
+POST   /api/auth/login             { "username": "...", "password": "..." }
+
+# Protected (Authorization: Bearer <token>)
 GET    /api/items
-POST   /api/items
+POST   /api/items                  { "name": "...", "description": "..." }
 GET    /api/items/{id}
-PUT    /api/items/{id}
+PUT    /api/items/{id}             { "name": "...", "description": "..." }
 DELETE /api/items/{id}
 ```
 
@@ -27,7 +34,7 @@ Run the API:
 nix develop -c cargo run
 ```
 
-The server creates the required `items` table on startup with an idempotent schema check.
+The server creates the required `items` and `users` tables on startup with an idempotent schema check.
 
 ## Environment
 
@@ -53,24 +60,70 @@ Runtime defaults:
 HOST=0.0.0.0
 PORT=3010
 MAX_DB_CONNECTIONS=2
+JWT_SECRET=change-me-to-a-random-64-char-string
 RUST_LOG=info
 ```
 
-## Example Requests
+## Authentication Flow
+
+1. **Register** a user:
 
 ```bash
-curl http://localhost:3010/health
+curl -X POST http://localhost:3010/api/auth/register \
+  -H 'content-type: application/json' \
+  -d '{"username":"alice","password":"s3cret-p@ss"}'
 ```
 
+Response (201):
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9...",
+  "user": { "id": "uuid", "username": "alice" }
+}
+```
+
+2. **Login** (get a new token):
+
 ```bash
+curl -X POST http://localhost:3010/api/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"username":"alice","password":"s3cret-p@ss"}'
+```
+
+3. **Use the token** for protected routes:
+
+```bash
+TOKEN="eyJhbGciOiJIUzI1NiJ9..."
+
+# Create an item
 curl -X POST http://localhost:3010/api/items \
   -H 'content-type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"name":"Notebook","description":"Daily notes"}'
+
+# List items
+curl http://localhost:3010/api/items \
+  -H "Authorization: Bearer $TOKEN"
+
+# Update an item
+curl -X PUT http://localhost:3010/api/items/<id> \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"Updated","description":"Changed"}'
+
+# Delete an item
+curl -X DELETE http://localhost:3010/api/items/<id> \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
+Health check (no auth required):
+
 ```bash
-curl http://localhost:3010/api/items
+curl http://localhost:3010/health  # → "ok"
 ```
+
+Tokens expire after **24 hours**. Passwords are hashed with **Argon2**.
 
 ## Deploy on Koyeb
 
@@ -106,6 +159,7 @@ If there is no Builder toggle on the existing service, create a **new** service 
 DATABASE_URL=postgres://user:password@host:5432/database?sslmode=require
 HOST=0.0.0.0
 PORT=3010
+JWT_SECRET=use-a-long-random-string-here
 RUST_LOG=info
 ```
 

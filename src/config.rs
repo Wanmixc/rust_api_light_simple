@@ -8,6 +8,7 @@ pub struct AppConfig {
     pub host: String,
     pub port: u16,
     pub max_db_connections: u32,
+    pub jwt_secret: String,
 }
 
 impl AppConfig {
@@ -50,12 +51,17 @@ impl AppConfig {
         let port = parse_or_default(values.get("PORT"), 3010, "PORT")?;
         let max_db_connections =
             parse_or_default(values.get("MAX_DB_CONNECTIONS"), 2, "MAX_DB_CONNECTIONS")?;
+        let jwt_secret = values
+            .get("JWT_SECRET")
+            .cloned()
+            .unwrap_or_else(|| "dev-secret-change-in-production".to_string());
 
         Ok(Self {
             database_url,
             host,
             port,
             max_db_connections,
+            jwt_secret,
         })
     }
 

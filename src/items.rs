@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{error::ApiError, AppState};
+use crate::{auth::AuthUser, error::ApiError, AppState};
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Item {
@@ -49,7 +49,10 @@ pub enum ValidationError {
     NameRequired,
 }
 
-pub async fn list_items(State(state): State<AppState>) -> Result<Json<Vec<Item>>, ApiError> {
+pub async fn list_items(
+    _auth: AuthUser,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<Item>>, ApiError> {
     let items = sqlx::query_as::<_, Item>(
         r#"
         select id, name, description, created_at, updated_at
@@ -64,6 +67,7 @@ pub async fn list_items(State(state): State<AppState>) -> Result<Json<Vec<Item>>
 }
 
 pub async fn create_item(
+    _auth: AuthUser,
     State(state): State<AppState>,
     Json(payload): Json<ItemPayload>,
 ) -> Result<(StatusCode, Json<Item>), ApiError> {
@@ -90,6 +94,7 @@ pub async fn create_item(
 }
 
 pub async fn get_item(
+    _auth: AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Item>, ApiError> {
@@ -109,6 +114,7 @@ pub async fn get_item(
 }
 
 pub async fn update_item(
+    _auth: AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(payload): Json<ItemPayload>,
@@ -139,6 +145,7 @@ pub async fn update_item(
 }
 
 pub async fn delete_item(
+    _auth: AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {

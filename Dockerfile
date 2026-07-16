@@ -27,6 +27,7 @@ COPY --from=builder /app/target/release/rust_api_light_simple /app/server
 ENV HOST=0.0.0.0
 ENV PORT=3010
 ENV MAX_DB_CONNECTIONS=2
+ENV JWT_SECRET=dev-secret-change-in-production
 ENV RUST_LOG=info
 
 EXPOSE 3010
