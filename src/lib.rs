@@ -2,6 +2,7 @@ pub mod auth;
 pub mod config;
 pub mod error;
 pub mod items;
+pub mod pastes;
 pub mod schema;
 
 use axum::{routing::get, Json, Router};
@@ -11,6 +12,7 @@ use crate::{
     auth::{list_users, login, me, register},
     error::ApiResponse,
     items::{create_item, delete_item, get_item, list_items, update_item},
+    pastes::{create_paste, delete_paste, get_paste},
 };
 
 #[derive(Clone)]
@@ -28,6 +30,8 @@ pub fn create_router(pool: PgPool, jwt_secret: String) -> Router {
         .route("/api/auth/login", axum::routing::post(login))
         .route("/api/auth/me", get(me))
         .route("/api/auth/users", get(list_users))
+        .route("/api/pastes", axum::routing::post(create_paste))
+        .route("/api/pastes/{id}", get(get_paste).delete(delete_paste))
         .route("/api/items", get(list_items).post(create_item))
         .route(
             "/api/items/{id}",

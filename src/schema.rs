@@ -27,9 +27,18 @@ create table if not exists users (
 )
 "#;
 
+pub const CREATE_PASTES_TABLE_SQL: &str = r#"
+create table if not exists pastes (
+    id varchar(5) primary key check (length(id) = 5),
+    content text not null check (length(trim(content)) > 0),
+    created_at timestamptz not null default now()
+)
+"#;
+
 pub async fn ensure_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     pool.execute(CREATE_ITEMS_TABLE_SQL).await?;
     pool.execute(CREATE_USERS_TABLE_SQL).await?;
+    pool.execute(CREATE_PASTES_TABLE_SQL).await?;
     fix_missing_columns(pool).await?;
     Ok(())
 }
@@ -76,6 +85,37 @@ async fn fix_missing_columns(pool: &PgPool) -> Result<(), sqlx::Error> {
                 where table_name = 'users' and constraint_name = 'users_username_key'
             ) then
                 alter table users add constraint users_username_key unique (username);
+            end if;
+        end
+        $$
+        "#,
+    )
+    .await?;
+
+    pool.execute(
+        r#"
+        do $$
+        begin
+            if exists (
+                select 1 from information_schema.columns
+                where table_name = 'pastes'
+                  and column_name = 'id'
+                  and data_type <> 'character varying'
+            ) then
+                alter table pastes drop constraint if exists pastes_pkey;
+                alter table pastes
+                    alter column id type varchar(5)
+                    using substring(md5(id::text || clock_timestamp()::text), 1, 5);
+                alter table pastes add constraint pastes_pkey primary key (id);
+            end if;
+
+            if not exists (
+                select 1 from information_schema.table_constraints
+                where table_name = 'pastes'
+                  and constraint_name = 'pastes_id_length_check'
+            ) then
+                alter table pastes
+                    add constraint pastes_id_length_check check (length(id) = 5);
             end if;
         end
         $$
