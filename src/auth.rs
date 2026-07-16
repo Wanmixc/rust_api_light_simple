@@ -140,6 +140,21 @@ pub async fn login(
     }))
 }
 
+pub async fn me(
+    auth: AuthUser,
+    State(state): State<super::AppState>,
+) -> Result<Json<UserPublic>, ApiError> {
+    let user = sqlx::query_as::<_, UserRow>(
+        "select id, username, password_hash, created_at from users where id = $1",
+    )
+    .bind(auth.user_id)
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(ApiError::NotFound)?;
+
+    Ok(Json(UserPublic::from(user)))
+}
+
 // ---------------------------------------------------------------------------
 // AuthUser extractor
 // ---------------------------------------------------------------------------

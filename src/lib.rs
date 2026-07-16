@@ -8,7 +8,7 @@ use axum::{routing::get, Router};
 use sqlx::PgPool;
 
 use crate::{
-    auth::{login, register},
+    auth::{login, me, register},
     items::{create_item, delete_item, get_item, list_items, update_item},
 };
 
@@ -25,6 +25,7 @@ pub fn create_router(pool: PgPool, jwt_secret: String) -> Router {
         .route("/health", get(health))
         .route("/api/auth/register", axum::routing::post(register))
         .route("/api/auth/login", axum::routing::post(login))
+        .route("/api/auth/me", get(me))
         .route("/api/items", get(list_items).post(create_item))
         .route(
             "/api/items/{id}",
