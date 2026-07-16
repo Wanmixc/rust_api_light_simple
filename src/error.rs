@@ -18,7 +18,7 @@ pub enum ApiError {
     Unauthorized(String),
     #[error("item not found")]
     NotFound,
-    #[error("database error")]
+    #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
 }
 
