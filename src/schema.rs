@@ -7,7 +7,13 @@ create table if not exists items (
     description text,
     is_active boolean not null default true,
     created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
+    updated_at timestamptz not null default now(),
+    created_by uuid references users(id),
+    created_date timestamptz,
+    updated_by uuid references users(id),
+    updated_date timestamptz,
+    inactivated_by uuid references users(id),
+    inactivated_date timestamptz
 )
 "#;
 
@@ -34,6 +40,12 @@ async fn fix_missing_columns(pool: &PgPool) -> Result<(), sqlx::Error> {
         ("users", "username", "text"),
         ("users", "is_active", "boolean not null default true"),
         ("items", "is_active", "boolean not null default true"),
+        ("items", "created_by", "uuid"),
+        ("items", "created_date", "timestamptz"),
+        ("items", "updated_by", "uuid"),
+        ("items", "updated_date", "timestamptz"),
+        ("items", "inactivated_by", "uuid"),
+        ("items", "inactivated_date", "timestamptz"),
     ];
 
     for (table, column, col_type) in migrations {

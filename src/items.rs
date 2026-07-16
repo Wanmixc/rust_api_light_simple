@@ -17,6 +17,12 @@ pub struct Item {
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub created_by: Option<Uuid>,
+    pub created_date: Option<DateTime<Utc>>,
+    pub updated_by: Option<Uuid>,
+    pub updated_date: Option<DateTime<Utc>>,
+    pub inactivated_by: Option<Uuid>,
+    pub inactivated_date: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -52,17 +58,21 @@ pub enum ValidationError {
     NameRequired,
 }
 
+// Shared column list so we don't repeat ourselves.
+const ITEM_COLUMNS: &str = "\
+    id, name, description, is_active, \
+    created_at, updated_at, \
+    created_by, created_date, \
+    updated_by, updated_date, \
+    inactivated_by, inactivated_date";
+
 pub async fn list_items(
     _auth: AuthUser,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<Item>>>, ApiError> {
-    let items = sqlx::query_as::<_, Item>(
-        r#"
-        select id, name, description, is_active, created_at, updated_at
-        from items
-        order by created_at desc
-        "#,
-    )
+    let items = sqlx::query_as::<_, Item>(&format!(
+        "select {ITEM_COLUMNS} from items order by created_at desc"
+    ))
     .fetch_all(&state.pool)
     .await?;
 
@@ -70,7 +80,7 @@ pub async fn list_items(
 }
 
 pub async fn create_item(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     Json(payload): Json<ItemPayload>,
 ) -> Result<(StatusCode, Json<ApiResponse<Item>>), ApiError> {
@@ -79,18 +89,22 @@ pub async fn create_item(
         .map_err(|error| ApiError::BadRequest(error.to_string()))?;
     let payload = payload.clean();
     let id = Uuid::new_v4();
+    let now = Utc::now();
 
-    let item = sqlx::query_as::<_, Item>(
+    let item = sqlx::query_as::<_, Item>(&format!(
         r#"
-        insert into items (id, name, description, is_active)
-        values ($1, $2, $3, $4)
-        returning id, name, description, is_active, created_at, updated_at
+        insert into items (id, name, description, is_active,
+                           created_by, created_date)
+        values ($1, $2, $3, $4, $5, $6)
+        returning {ITEM_COLUMNS}
         "#,
-    )
+    ))
     .bind(id)
     .bind(payload.name)
     .bind(payload.description)
     .bind(payload.is_active.unwrap_or(true))
+    .bind(auth.user_id)
+    .bind(now)
     .fetch_one(&state.pool)
     .await?;
 
@@ -102,13 +116,9 @@ pub async fn get_item(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<Item>>, ApiError> {
-    let item = sqlx::query_as::<_, Item>(
-        r#"
-        select id, name, description, is_active, created_at, updated_at
-        from items
-        where id = $1
-        "#,
-    )
+    let item = sqlx::query_as::<_, Item>(&format!(
+        "select {ITEM_COLUMNS} from items where id = $1"
+    ))
     .bind(id)
     .fetch_optional(&state.pool)
     .await?
@@ -118,7 +128,7 @@ pub async fn get_item(
 }
 
 pub async fn update_item(
-    _auth: AuthUser,
+    auth: AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(payload): Json<ItemPayload>,
@@ -127,22 +137,40 @@ pub async fn update_item(
         .validate()
         .map_err(|error| ApiError::BadRequest(error.to_string()))?;
     let payload = payload.clean();
+    let now = Utc::now();
+    let new_is_active = payload.is_active.unwrap_or(true);
 
-    let item = sqlx::query_as::<_, Item>(
+    // Fetch current is_active to decide whether to set inactivated_* fields.
+    let current: Option<(bool,)> =
+        sqlx::query_as("select is_active from items where id = $1")
+            .bind(id)
+            .fetch_optional(&state.pool)
+            .await?;
+
+    let (current_is_active,) = current.ok_or(ApiError::NotFound)?;
+
+    let item = sqlx::query_as::<_, Item>(&format!(
         r#"
         update items
         set name = $2,
             description = $3,
             is_active = $4,
-            updated_at = now()
+            updated_at = now(),
+            updated_by = $5,
+            updated_date = $6,
+            inactivated_by = case when $7 and not $4 then $5 else inactivated_by end,
+            inactivated_date = case when $7 and not $4 then $6 else inactivated_date end
         where id = $1
-        returning id, name, description, is_active, created_at, updated_at
+        returning {ITEM_COLUMNS}
         "#,
-    )
+    ))
     .bind(id)
     .bind(payload.name)
     .bind(payload.description)
-    .bind(payload.is_active.unwrap_or(true))
+    .bind(new_is_active)
+    .bind(auth.user_id)
+    .bind(now)
+    .bind(current_is_active) // true = was active before this update
     .fetch_optional(&state.pool)
     .await?
     .ok_or(ApiError::NotFound)?;
