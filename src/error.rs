@@ -18,6 +18,8 @@ pub enum ApiError {
     Unauthorized(String),
     #[error("item not found")]
     NotFound,
+    #[error("user not found")]
+    UserNotFound,
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -27,6 +29,7 @@ impl IntoResponse for ApiError {
         let status = match self {
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
+            Self::UserNotFound => StatusCode::NOT_FOUND,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };

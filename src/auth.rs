@@ -150,7 +150,7 @@ pub async fn me(
     .bind(auth.user_id)
     .fetch_optional(&state.pool)
     .await?
-    .ok_or(ApiError::NotFound)?;
+    .ok_or(ApiError::UserNotFound)?;
 
     Ok(Json(UserPublic::from(user)))
 }
