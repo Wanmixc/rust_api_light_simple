@@ -7,6 +7,9 @@ Small Rust CRUD API for PostgreSQL, built with Axum + SQLx. JWT authentication (
 ```text
 # Public
 GET    /health
+POST   /api/pastes                 { "content": "..." }
+GET    /api/pastes/{id}
+DELETE /api/pastes/{id}
 
 # Auth
 POST   /api/auth/register          { "username": "...", "password": "..." }
@@ -34,7 +37,7 @@ Run the API:
 nix develop -c cargo run
 ```
 
-The server creates the required `items` and `users` tables on startup with an idempotent schema check.
+The server creates the required `items`, `users`, and `pastes` tables on startup with an idempotent schema check.
 
 ## Environment
 
@@ -121,6 +124,21 @@ Health check (no auth required):
 
 ```bash
 curl http://localhost:3010/health  # → "ok"
+```
+
+Public paste endpoints do not require auth:
+
+```bash
+# Create a paste
+curl -X POST http://localhost:3010/api/pastes \
+  -H 'content-type: application/json' \
+  -d '{"content":"copy this text"}'
+
+# Get a paste by 5-character case-sensitive id
+curl http://localhost:3010/api/pastes/aB3xZ
+
+# Delete a paste by 5-character case-sensitive id
+curl -X DELETE http://localhost:3010/api/pastes/aB3xZ
 ```
 
 Tokens expire after **24 hours**. Passwords are hashed with **Argon2**.
